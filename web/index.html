@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plátano al ritmo</title>
+<style>
+  html,body {margin:0; width:100%; height:100%; overflow:hidden; background:transparent}
+  main {height:100%; display:flex; align-items:center; justify-content:center}
+  #banana {font-size:min(42vw,42vh); line-height:1; will-change:transform}
+  video,img {max-width:80vw; max-height:80vh; display:block}
+  #debug {position:absolute; bottom:8px; left:8px; font:16px monospace;
+    color:white; background:#111c; padding:8px; display:none}
+</style>
+<main><div id="banana">🍌</div></main>
+<output id="debug"></output>
+<script src="/bridge.js"></script>
+<script>
+(async function () {
+  const params = new URLSearchParams(location.search);
+  const bridge = new BeatBridge({url:location.origin});
+  const baseBpm = Number(params.get('base')) || 120;
+  const phaseOffset = (Number(params.get('phase')) || 0)/1000;
+  const info = await fetch('/asset-info').then(r => r.json());
+  const banana = document.getElementById('banana');
+  if (info.kind === 'video') {
+    banana.textContent = '';
+    const video = document.createElement('video');
+    video.src = '/banana'; video.muted = true; video.loop = true;
+    video.playsInline = true; video.preload = 'auto';
+    banana.append(video);
+    bridge.connectVideo(video, {baseBpm, phaseOffset});
+  } else {
+    if (info.kind === 'image') {
+      banana.textContent = '';
+      const image = document.createElement('img');
+      image.src = '/banana'; image.alt = 'Plátano'; banana.append(image);
+    }
+    // One bounce each half second = 120 BPM at the native timeline speed.
+    const animation = banana.animate([
+      {transform:'translateY(0) rotate(-5deg)', offset:0},
+      {transform:'translateY(-55px) rotate(5deg)', offset:0.5},
+      {transform:'translateY(0) rotate(-5deg)', offset:1}
+    ], {duration:60000/baseBpm, iterations:Infinity, easing:'ease-in-out'});
+    animation.pause();
+    bridge.connectAnimation(animation, {baseBpm, phaseOffset});
+  }
+  const debug = document.getElementById('debug');
+  if (params.get('debug') === '1') debug.style.display='block';
+  window.addEventListener('bpmbeat', ({detail:s}) => {
+    debug.textContent = `${s.status} | ${s.bpm ?? '—'} BPM | confianza ${s.confidence} | ×${s.playback_rate.toFixed(2)}`;
+  });
+  bridge.start();
+  window.bananaBridge = bridge;
+})();
+</script>
+</html>
