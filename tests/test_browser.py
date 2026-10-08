@@ -47,13 +47,17 @@ def test_animation_follows_tempo_phase_and_stops(browser):
         page.wait_for_function("window.bananaBridge && bananaBridge.active()")
         for bpm in (90, 150):
             state.publish(Estimate(bpm, 0.9, time.time(), 0.1))
-            page.wait_for_function(f"bananaBridge.state.bpm === {bpm}")
-            page.wait_for_timeout(50)
-            data = page.evaluate("""() => {
+            updated_at = state.snapshot()["updated_at"]
+            # The first publication repeats 90 BPM, so BPM alone cannot identify
+            # the new state. Polling can also update state before the next render.
+            page.wait_for_function("updatedAt => bananaBridge.state.updated_at === updatedAt",
+                                   arg=updated_at, timeout=3000)
+            data = page.wait_for_function("""() => {
               const b = bananaBridge, a = b.targets[0].element;
-              return {actual:a.currentTime, expected:
+              const sample = {actual:a.currentTime, expected:
                 (Date.now()/1000+b.clockOffset-b.state.beat_at)*(b.state.bpm/120)*1000};
-            }""")
+              return Math.abs(sample.actual-sample.expected) < 50 ? sample : false;
+            }""", timeout=3000).json_value()
             assert abs(data["actual"]-data["expected"]) < 50
         state.unavailable("silent")
         page.wait_for_function("!bananaBridge.active()")
