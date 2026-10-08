@@ -9,18 +9,18 @@ Tu página actual usa el puerto **8766**. Este puente usa **8767** para que pued
 1. Instala **Python 3.12 de 64 bits** con el lanzador `py`. Descarga los archivos de este proyecto juntos y abre una terminal en esa carpeta.
 2. Ejecuta `install_windows.cmd` una vez.
 3. Reproduce música en MusicBee y ejecuta `start_windows.cmd`. Deja esa terminal abierta. Captura por defecto la salida de audio predeterminada de Windows.
-4. En OBS, abre **Herramientas → Scripts → +**, carga `obs/banana_bpm.lua` y pulsa **Crear / conectar fuente**. Se crea una fuente de navegador llamada `Platano BPM` en la escena actual, con fondo transparente. La página incluida muestra un plátano sencillo que bota al pulso.
-5. Para usar **tu animación** en esa nueva fuente, inicia el puente con tu archivo:
+4. En OBS, abre **Herramientas → Scripts → +** y carga `obs/banana_bpm.lua`.
+5. En las propiedades del script, abre **Archivo del overlay (tu vídeo)** y **selecciona tu archivo**. Ajusta el ancho y alto de la fuente, deja el tempo original en **120 BPM** si hace dos botes por segundo, y pulsa **Crear / conectar fuente**. Puedes elegir otro vídeo y volver a pulsar el botón para cambiar el overlay.
 
-   ```bat
-   start_windows.cmd --banana "C:\Animaciones\platano.webm"
-   ```
-
-   Admite MP4 y WebM, y PNG/JPG estáticos. El vídeo conserva su animación y cambia su velocidad; una imagen estática recibe un bote por pulso. El audio del vídeo se silencia para no contaminar la detección. WebM permite conservar transparencia. La reproducción de MP4 depende del códec disponible en el navegador de OBS.
+   Se crea una fuente de navegador llamada `Platano BPM` en la escena actual, con fondo transparente, que reproduce **tu propio vídeo**. No necesitas escribir su ruta en la terminal. El selector admite MP4, WebM, MOV y M4V; su reproducción depende del códec disponible en el navegador de OBS. WebM permite conservar transparencia. Se conserva la animación original y se ajustan su velocidad y fase; no se añade otro bote al vídeo. Su audio se silencia para no contaminar la detección.
 
 **No debes mover solo el archivo Lua:** el puente necesita las carpetas `bpm_bridge` y `web`, además de sus dependencias. El script Lua no inicia Python automáticamente. Hay que iniciar el puente en cada sesión. Al cerrar la terminal o perder el pulso fiable, el plátano se detiene.
 
-Si mantienes el nombre predeterminado, tu fuente actual en 8766 se conserva. Si escribes el nombre de una fuente de navegador existente y pulsas el botón, el script **reemplaza su URL y establece tamaño 600 × 600**; crea una fuente separada para conservar sus ajustes.
+Si mantienes el nombre predeterminado, tu fuente actual en 8766 se conserva. Si escribes el nombre de una fuente de navegador existente y pulsas el botón, el script **cambia esa fuente a la página local generada y aplica el ancho/alto elegidos**; crea una fuente separada para conservar sus ajustes.
+
+OBS guarda la selección del vídeo en los ajustes del script. El script crea una página `.banana-bpm-overlay-….html` junto al archivo Lua; necesita permiso de escritura en esa carpeta. Conserva el paquete en una carpeta propia, por ejemplo Documentos. Tras cambiar el vídeo o los ajustes, pulsa **Crear / conectar fuente** para aplicarlos. Las páginas generadas están ignoradas por Git y no se incluyen en el ZIP.
+
+Como alternativa, la página HTTP del puente mantiene la opción `start_windows.cmd --banana "C:\Animaciones\platano.webm"` para vídeo MP4/WebM o imagen estática PNG/JPG. Esa opción corresponde a la página HTTP; el selector del script de OBS usa el archivo que elijas directamente.
 
 ## Conectar tu página existente en 8766
 
@@ -120,6 +120,6 @@ python3 -m venv /workspace/.bpm-setup/venv
 /workspace/.bpm-setup/venv/bin/python -m bpm_bridge --demo-bpm 120
 ```
 
-Las pruebas de navegador usan Chromium del sistema (`CHROMIUM_EXECUTABLE` puede indicar su ruta). Si no está instalado, ejecuta `python -m playwright install chromium` en tu entorno virtual; FFmpeg se usa para generar el vídeo de prueba. Las pruebas verifican tempos de 60 a 200 BPM, fase, cambios de sección, mezcla con tono/ruido, rechazo de señales sin pulso, respuesta HTTP, bloqueo de rutas arbitrarias, animación y reproducción de vídeo en Chromium.
+Las pruebas de navegador usan Chromium del sistema (`CHROMIUM_EXECUTABLE` puede indicar su ruta). Si no está instalado, ejecuta `python -m playwright install chromium` en tu entorno virtual; FFmpeg se usa para generar el vídeo de prueba. Las pruebas verifican tempos de 60 a 200 BPM, fase, cambios de sección, mezcla con tono/ruido, rechazo de señales sin pulso, respuesta HTTP, bloqueo de rutas arbitrarias, animación y reproducción de vídeo en Chromium. LuaJIT verifica el selector y la generación de la página con archivos locales. En esta máquina, una política de Chromium bloquea `file://`: esa prueba se omite expresamente, y la misma página se prueba por HTTP con un vídeo real. La carga local dentro del navegador de OBS sigue pendiente de validar en Windows.
 
 **Lo que Linux no valida:** WASAPI en tu hardware, la captura real de MusicBee, las APIs del script dentro de OBS, el contenido de tu página de 8766 y el comportamiento con tu archivo de plátano. Estas pruebas requieren tu PC. No se promete exactitud perfecta en canciones reales.

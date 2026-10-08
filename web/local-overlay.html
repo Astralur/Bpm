@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tu overlay al ritmo</title>
+<style>
+  html,body {margin:0; width:100%; height:100%; overflow:hidden; background:transparent}
+  video {width:100%; height:100%; object-fit:contain; display:block}
+</style>
+<video id="overlay-video" muted loop playsinline preload="auto"></video>
+<script>
+__BRIDGE_SCRIPT__
+</script>
+<script>
+const video = document.getElementById('overlay-video');
+video.src = __MEDIA_URL_JSON__;
+const bridge = new BeatBridge({url:__BRIDGE_URL_JSON__});
+bridge.connectVideo(video, {baseBpm:__BASE_BPM__, phaseOffset:__PHASE_SECONDS__});
+bridge.start();
+window.bananaBridge = bridge;
+</script>
+</html>

@@ -5,3 +5,5 @@ __pycache__/
 *.log
 build/
 dist/
+obs/.banana-bpm-overlay.html
+obs/.banana-bpm-overlay-*.html
