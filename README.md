@@ -92,6 +92,20 @@ El loopback del dispositivo predeterminado incluye **todo el audio** de esa sali
 
 Si MusicBee usa salida ASIO o modo exclusivo, la captura compartida WASAPI puede no recibir audio: selecciona salida compartida o una ruta virtual accesible. Cambiar el dispositivo predeterminado requiere reiniciar el puente. Si cambia su formato o se desconecta, el programa termina con error y debe reiniciarse tras resolverlo.
 
+### Aviso «data discontinuity in recording»
+
+Este aviso de SoundCard indica una discontinuidad en los paquetes que entrega WASAPI; puede deberse a retrasos de lectura, cambios de dispositivo o el controlador de audio. Un corte invalida el tempo y la fase calculados sobre esos paquetes. El puente descarta ese bloque y la ventana anterior, detiene la animación y vuelve a reunir audio continuo. El estado HTTP informa `capture_discontinuities` y `last_capture_gap`; los avisos repetidos se resumen cada cinco segundos sin esconder otras advertencias del backend.
+
+La captura usa un búfer de 250 ms y `start_windows.cmd` limita a un hilo las bibliotecas de cálculo para reducir la competencia con el hilo de audio. Si los cortes se repiten, prueba:
+
+```bat
+start_windows.cmd --capture-buffer-ms 500
+```
+
+El búfer es margen para absorber retrasos, no una garantía contra fallos del controlador. Si continúan, comprueba el dispositivo elegido, la carga del PC y la salida compartida de MusicBee.
+
+Si el aviso aparece con el prefijo `[Unknown Script]` en **el registro de OBS**, procede de un script Python cargado allí. Este paquete carga únicamente **`banana_bpm.lua` en OBS**; el detector corre fuera mediante `start_windows.cmd`. Un script adicional como `musicbee_bpm_scanner.py` no forma parte del paquete y necesita su propio diagnóstico: retíralo temporalmente de la lista de scripts (no borres el archivo) para comprobar si deja de emitir el aviso. Cambiar este puente no modifica ese otro script.
+
 ## Detección dinámica y límites
 
 - Ventana móvil de **8 segundos**, actualizada cada **0,5 segundos**; comienza a estimar tras al menos 3 segundos de audio. Un cambio de sección necesita varios pulsos y puede tardar hasta aproximadamente una ventana en estabilizarse. No hay análisis anticipado del archivo ni identificación de títulos de MusicBee.

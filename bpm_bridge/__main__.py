@@ -7,6 +7,7 @@ import time
 import numpy as np
 
 from .detector import TempoDetector
+from .capture import record_block
 from .server import make_server
 from .state import BeatState
 
@@ -59,16 +60,32 @@ def audio_worker(args, state, stop, errors):
             print("Real capture is intended for Windows WASAPI; this host uses its native backend.", flush=True)
         blocks = collections.deque(maxlen=round(args.window*10))
         condition = threading.Condition()
-        captured = {"end": 0.0, "error": None, "finished": False}
+        captured = {"end": 0.0, "error": None, "finished": False, "generation": 0}
 
         def record():
             try:
+                last_report = float("-inf")
+                warning_category = getattr(sc, "SoundcardRuntimeWarning", RuntimeWarning)
                 # Two channels avoids SoundCard's Windows single-channel issue.
-                with device.recorder(samplerate=rate, channels=2, blocksize=2205) as recorder:
+                buffer_frames = round(rate * args.capture_buffer_ms / 1000)
+                with device.recorder(samplerate=rate, channels=2, blocksize=buffer_frames) as recorder:
                     while not stop.is_set():
-                        block = recorder.record(numframes=2205).mean(axis=1)
+                        raw, gaps = record_block(recorder, 2205, warning_category)
                         end = time.time()
                         with condition:
+                            if gaps:
+                                blocks.clear()
+                                captured["generation"] += 1
+                                state.note_discontinuity(gaps)
+                                condition.notify_all()
+                                if time.monotonic() - last_report >= 5:
+                                    print("Audio discontinuity: discarded the analysis window. "
+                                          "If repeated, try --capture-buffer-ms 500 and check the output device.",
+                                          file=sys.stderr, flush=True)
+                                    last_report = time.monotonic()
+                                # This returned block can itself straddle a gap.
+                                continue
+                            block = raw.mean(axis=1)
                             blocks.append(block)
                             captured["end"] = end
                             condition.notify_all()
@@ -83,6 +100,7 @@ def audio_worker(args, state, stop, errors):
 
         capture = threading.Thread(target=record, daemon=True)
         capture.start()
+        generation = 0
         while not stop.is_set():
             with condition:
                 if captured["error"]:
@@ -91,6 +109,9 @@ def audio_worker(args, state, stop, errors):
                     raise RuntimeError("Audio capture stopped")
                 samples = np.concatenate(tuple(blocks)) if blocks else np.array([])
                 end = captured["end"]
+                if generation != captured["generation"]:
+                    previous = None
+                generation = captured["generation"]
             # Detect silence from the most recent half second, not the old window.
             recent = samples[-rate//2:]
             recent_rms = float(np.sqrt(np.mean(recent**2))) if recent.size else 0
@@ -102,9 +123,12 @@ def audio_worker(args, state, stop, errors):
                     blocks.clear()
             elif len(samples) >= rate*3:
                 estimate = detector.estimate(samples, end, previous)
-                state.publish(estimate)
-                if estimate.bpm is not None:
-                    previous = estimate.bpm
+                with condition:
+                    # A gap during analysis invalidates even a confident result.
+                    if generation == captured["generation"]:
+                        state.publish(estimate)
+                        if estimate.bpm is not None:
+                            previous = estimate.bpm
             else:
                 state.unavailable("warming_up")
             stop.wait(args.interval)
@@ -126,6 +150,8 @@ def parser():
     p.add_argument("--max-bpm", type=float, default=200)
     p.add_argument("--base-bpm", type=float, default=120)
     p.add_argument("--offset-ms", type=float, default=0, help="Positive delays the visual pulse")
+    p.add_argument("--capture-buffer-ms", type=int, default=250,
+                   help="Audio capture buffer in milliseconds (100-2000); try 500 for dropouts")
     p.add_argument("--demo-bpm", type=float, help="Synthetic demo WITHOUT MusicBee capture")
     return p
 
@@ -146,6 +172,8 @@ def main():
         return 0
     if not 4 <= args.window <= 20 or not 0.2 <= args.interval <= 2:
         p.error("Use --window 4..20 and --interval 0.2..2")
+    if not 100 <= args.capture_buffer_ms <= 2000:
+        p.error("Use --capture-buffer-ms 100..2000")
     if args.base_bpm <= 0 or not 1 <= args.port <= 65535:
         p.error("Invalid base BPM or port")
     if args.demo_bpm is not None and not args.min_bpm <= args.demo_bpm <= args.max_bpm:

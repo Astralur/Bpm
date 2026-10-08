@@ -8,6 +8,8 @@ class BeatState:
         self.lock = threading.Lock()
         self.base_bpm = base_bpm
         self.offset = offset_ms / 1000
+        self.capture_discontinuities = 0
+        self.last_capture_gap = None
         self.data = {"bpm": None, "confidence": 0, "beat_at": None,
                      "audio_active": False, "status": "waiting", "updated_at": 0}
 
@@ -26,9 +28,18 @@ class BeatState:
         with self.lock:
             self.data.update(audio_active=False, status=status, updated_at=time.time())
 
+    def note_discontinuity(self, count=1):
+        with self.lock:
+            self.capture_discontinuities += count
+            self.last_capture_gap = time.time()
+            self.data.update(bpm=None, confidence=0, beat_at=None, audio_active=False,
+                             status="recovering_audio", updated_at=self.last_capture_gap)
+
     def snapshot(self):
         with self.lock:
             result = dict(self.data)
+            result.update(capture_discontinuities=self.capture_discontinuities,
+                          last_capture_gap=self.last_capture_gap)
         if time.time() - result["updated_at"] > 3:
             result.update(audio_active=False, status="stale")
         result.update(base_bpm=self.base_bpm,
